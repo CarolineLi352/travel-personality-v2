@@ -19,20 +19,33 @@ type ResultState = { persona: Persona; world: World; scores: Scores; analysis: A
 type EntrySource = "direct" | "invitation" | "shared_result";
 
 function decodeAnswerPath(path = ""): Answer[] {
+  const legacyQuestionIds = [
+    "whatever", "holiday", "leave-now", "sold-out", "photo-dump", "queue", "group-chat", "upgrade",
+    "viral", "lost", "dress-code", "menu", "rain", "late", "main-character", "final-button",
+  ];
   return questions.flatMap((question, index) => {
-    const optionId = path[index];
+    const answerIndex = path.length > questions.length ? legacyQuestionIds.indexOf(question.id) : index;
+    const optionId = path[answerIndex];
     return question.options.some((option) => option.id === optionId)
       ? [{ questionId: question.id, optionId }]
       : [];
   });
 }
 
-export function TravelApp() {
-  const [language, setLanguage] = useState<Language>("zh");
+function replaceLanguagePath(nextLanguage: Language) {
+  const url = new URL(window.location.href);
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+  url.pathname = `${basePath}${nextLanguage === "en" ? "/en/" : "/"}`;
+  url.searchParams.delete("lang");
+  window.history.replaceState({}, "", url);
+}
+
+export function TravelApp({ initialLanguage = "zh" }: { initialLanguage?: Language }) {
+  const [language, setLanguage] = useState<Language>(initialLanguage);
   const [screen, setScreen] = useState<Screen>("hero");
   const [stage, setStage] = useState(0);
   const [result, setResult] = useState<ResultState | null>(null);
-  const [invitation, setInvitation] = useState<string | null>(null);
+  const [invitationPersonaId, setInvitationPersonaId] = useState<string | null>(null);
   const [friendSnapshot, setFriendSnapshot] = useState<FriendSnapshot | null>(null);
   const runId = useRef(0);
   const attemptId = useRef<string | null>(null);
@@ -48,8 +61,12 @@ export function TravelApp() {
     } catch {
       // Storage can be disabled by browser privacy settings.
     }
-    const savedLanguage = params.get("lang") ?? storedLanguage;
-    if (savedLanguage === "en") setLanguage("en");
+    const routeLanguage = window.location.pathname.replace(/\/$/, "").endsWith("/en") ? "en" : null;
+    const savedLanguage = params.get("lang") ?? routeLanguage ?? storedLanguage;
+    if (savedLanguage === "en" || savedLanguage === "zh") {
+      setLanguage(savedLanguage);
+      if (savedLanguage !== initialLanguage) replaceLanguagePath(savedLanguage);
+    }
     const match = params.get("match");
     let hasValidMatch = false;
     if (match) {
@@ -58,7 +75,7 @@ export function TravelApp() {
         const inviter = findPersona(snapshot.p);
         if (!inviter) throw new Error("Unknown friend persona");
         setFriendSnapshot(snapshot);
-        setInvitation(`${inviter.code} · ${inviter.name}`);
+        setInvitationPersonaId(inviter.id);
         hasValidMatch = true;
         entrySource.current = "invitation";
       } catch {
@@ -69,7 +86,7 @@ export function TravelApp() {
     if (from && !hasValidMatch) {
       const inviter = findPersona(from);
       if (inviter) {
-        setInvitation(`${inviter.code} · ${inviter.name}`);
+        setInvitationPersonaId(inviter.id);
         entrySource.current = "invitation";
       }
     }
@@ -88,12 +105,13 @@ export function TravelApp() {
     } catch {
       window.history.replaceState({}, "", window.location.pathname);
     }
-  }, []);
+  }, [initialLanguage]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   function changeLanguage(nextLanguage: Language) {
     setLanguage(nextLanguage);
-    document.documentElement.lang = nextLanguage === "zh" ? "zh-CN" : "en";
+    document.documentElement.lang = nextLanguage === "zh" ? "zh-CN" : "en-GB";
+    replaceLanguagePath(nextLanguage);
     try {
       window.localStorage.setItem("travel-personality-language", nextLanguage);
     } catch {
@@ -102,13 +120,14 @@ export function TravelApp() {
   }
 
   useEffect(() => {
-    document.documentElement.lang = language === "zh" ? "zh-CN" : "en";
+    document.documentElement.lang = language === "zh" ? "zh-CN" : "en-GB";
+    document.cookie = `travel-personality-language=${language}; Path=/; Max-Age=31536000; SameSite=Lax`;
   }, [language]);
 
   async function complete(answers: Answer[]) {
     const currentRun = ++runId.current;
     const scores = scoreAnswers(answers);
-    const persona = matchPersona(scores);
+    const persona = matchPersona(scores, answers);
     const world = getWorld(persona.worldId);
     setStage(0);
     setScreen("analyzing");
@@ -141,7 +160,7 @@ export function TravelApp() {
     setScreen("hero");
     if (friendSnapshot) {
       const inviter = getPersona(friendSnapshot.p);
-      setInvitation(`${inviter.code} · ${inviter.name}`);
+      setInvitationPersonaId(inviter.id);
       const url = new URL(window.location.href);
       url.search = "";
       url.hash = "";
@@ -149,7 +168,7 @@ export function TravelApp() {
       url.searchParams.set("match", encodeFriendSnapshot(friendSnapshot));
       window.history.replaceState({}, "", url);
     } else {
-      setInvitation(null);
+      setInvitationPersonaId(null);
       window.history.replaceState({}, "", window.location.pathname);
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -177,5 +196,7 @@ export function TravelApp() {
     const analysis = createRuleBasedAnalysis(result.scores, persona, world, result.answers, language);
     return <Result {...result} persona={persona} world={world} analysis={analysis} language={language} onLanguageChange={changeLanguage} friendSnapshot={friendSnapshot} onRestart={restart} />;
   }
+  const invitationPersona = invitationPersonaId ? localizePersona(getPersona(invitationPersonaId), language) : null;
+  const invitation = invitationPersona ? `${invitationPersona.code} · ${invitationPersona.name}` : null;
   return <Hero language={language} onLanguageChange={changeLanguage} analyticsEnabled={analyticsEnabled} invitation={invitation} onStart={startQuiz} />;
 }

@@ -14,7 +14,7 @@ create table if not exists public.quiz_events (
     'planet-earth-expat'
   )),
   scores jsonb,
-  answer_path text check (answer_path is null or answer_path ~ '^[a-d]{16}$'),
+  answer_path text check (answer_path is null or answer_path ~ '^([a-d]{12}|[a-d]{16})$'),
   entry_source text check (entry_source is null or entry_source in ('direct', 'invitation', 'shared_result')),
   share_channel text check (share_channel is null or share_channel in ('result_link', 'invite_link', 'poster', 'poster_download')),
   created_at timestamptz not null default now(),
@@ -48,6 +48,11 @@ with check (
 comment on table public.quiz_events is
   'Anonymous Travel Personality usage events. Public clients can insert only; reads stay private.';
 
+-- Keep historical 16-answer events readable while accepting the current 12-answer quiz.
+alter table public.quiz_events drop constraint if exists quiz_events_answer_path_check;
+alter table public.quiz_events add constraint quiz_events_answer_path_check
+  check (answer_path is null or answer_path ~ '^([a-d]{12}|[a-d]{16})$');
+
 -- Usage and completion trend.
 create or replace view public.analytics_daily_usage as
 select
@@ -79,36 +84,36 @@ order by completions desc;
 -- Final submitted choices. This reads answer_path from completion events so going back
 -- and changing an answer does not count both choices.
 create or replace view public.analytics_answer_distribution as
-with positions(question_number, question_id) as (values
-  (1, 'whatever'), (2, 'holiday'), (3, 'leave-now'), (4, 'sold-out'),
-  (5, 'photo-dump'), (6, 'queue'), (7, 'group-chat'), (8, 'upgrade'),
-  (9, 'viral'), (10, 'lost'), (11, 'dress-code'), (12, 'menu'),
-  (13, 'rain'), (14, 'late'), (15, 'main-character'), (16, 'final-button')
+with positions(question_number, legacy_number, question_id) as (values
+  (1, 1, 'whatever'), (2, 2, 'holiday'), (3, 4, 'sold-out'),
+  (4, 5, 'photo-dump'), (5, 6, 'queue'), (6, 7, 'group-chat'),
+  (7, 10, 'lost'), (8, 11, 'dress-code'), (9, 12, 'menu'),
+  (10, 13, 'rain'), (11, 15, 'main-character'), (12, 16, 'final-button')
 )
 select
   question_number,
   question_id,
-  substr(answer_path, question_number, 1) as option_id,
+  substr(answer_path, case when length(answer_path) = 16 then legacy_number else question_number end, 1) as option_id,
   count(*) as selections,
   round(100.0 * count(*) / sum(count(*)) over (partition by question_number), 2) as percentage
 from public.quiz_events
 cross join positions
 where event_type = 'quiz_completed' and answer_path is not null
-group by question_number, question_id, substr(answer_path, question_number, 1)
+group by question_number, question_id, substr(answer_path, case when length(answer_path) = 16 then legacy_number else question_number end, 1)
 order by question_number, option_id;
 
 -- Compare JOKER answers with all completed tests to find which choices over-index.
 create or replace view public.analytics_joker_answers as
-with positions(question_number, question_id) as (values
-  (1, 'whatever'), (2, 'holiday'), (3, 'leave-now'), (4, 'sold-out'),
-  (5, 'photo-dump'), (6, 'queue'), (7, 'group-chat'), (8, 'upgrade'),
-  (9, 'viral'), (10, 'lost'), (11, 'dress-code'), (12, 'menu'),
-  (13, 'rain'), (14, 'late'), (15, 'main-character'), (16, 'final-button')
+with positions(question_number, legacy_number, question_id) as (values
+  (1, 1, 'whatever'), (2, 2, 'holiday'), (3, 4, 'sold-out'),
+  (4, 5, 'photo-dump'), (5, 6, 'queue'), (6, 7, 'group-chat'),
+  (7, 10, 'lost'), (8, 11, 'dress-code'), (9, 12, 'menu'),
+  (10, 13, 'rain'), (11, 15, 'main-character'), (12, 16, 'final-button')
 ), expanded as (
   select
     question_number,
     question_id,
-    substr(answer_path, question_number, 1) as option_id,
+    substr(answer_path, case when length(answer_path) = 16 then legacy_number else question_number end, 1) as option_id,
     persona_id
   from public.quiz_events
   cross join positions

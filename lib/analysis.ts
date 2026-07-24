@@ -5,7 +5,7 @@ import type { Analysis, Answer, DimensionId, Persona, Scores, World } from "@/li
 
 const strategies = [
   { name: "旅行人格扫描", opening: "AI 看完你的答案，决定先从你最藏不住的旅行习惯讲起。" },
-  { name: "上头行为审计", opening: "系统对你的十六次选择进行了审计，发现理智经常只负责最后签字。" },
+  { name: "上头行为审计", opening: "系统对你的十二次选择进行了审计，发现理智经常只负责最后签字。" },
   { name: "旅行事故复盘", opening: "系统预演了你的一趟旅行，并提前写好了三份事故复盘。" },
   { name: "朋友圈素材分析", opening: "系统翻完你的选择，确认你不是去旅行，是去生产一整季内容。" },
   { name: "同行风险评估", opening: "系统站在未来旅伴的角度看完答案，默默把保险额度调高了一档。" },
@@ -200,7 +200,7 @@ export function createRuleBasedAnalysis(
 
 const englishStrategies = [
   ["Travel behaviour scan", "AI reviewed your answers and immediately found the habit your friends complain about in private."],
-  ["Financial impulse audit", "Sixteen choices later, the system confirms your common sense is mostly employed in an advisory capacity."],
+  ["Financial impulse audit", "Twelve choices later, the system confirms your common sense is mostly employed in an advisory capacity."],
   ["Pre-emptive incident report", "AI simulated one trip with you and has already opened a case number."],
   ["Content operations review", "The evidence suggests you do not go on holiday. You launch a limited series."],
   ["Travel companion risk review", "AI read your answers from your future travel partner’s perspective and quietly upgraded the insurance."],

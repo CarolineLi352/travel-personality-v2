@@ -8,6 +8,7 @@ export type QuestionOption = {
   text: string;
   reaction: string;
   weights: Partial<Record<DimensionId, number>>;
+  personaHints?: Record<string, number>;
 };
 
 export type Question = {

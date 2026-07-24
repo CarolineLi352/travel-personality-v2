@@ -18,7 +18,7 @@ export function Quiz({ onComplete, onExit, onAnswer, language, onLanguageChange 
   const [index, setIndex] = React.useState(0);
   const [answers, setAnswers] = React.useState<Answer[]>([]);
   const [selected, setSelected] = React.useState<string | null>(null);
-  const [previewed, setPreviewed] = React.useState<string | null>(null);
+  const [stationaryPointerSlot, setStationaryPointerSlot] = React.useState<number | null>(null);
   const localizedQuestions = React.useMemo(() => localizeQuestions(questions, language), [language]);
   const question = localizedQuestions[index];
   const displayedOptions = (optionOrder[question.id] ?? question.options.map((option) => option.id))
@@ -27,7 +27,6 @@ export function Quiz({ onComplete, onExit, onAnswer, language, onLanguageChange 
 
   function choose(optionId: string) {
     if (selected) return;
-    setPreviewed(null);
     setSelected(optionId);
     const answer = { questionId: question.id, optionId };
     const nextAnswers = [...answers.slice(0, index), answer];
@@ -38,7 +37,6 @@ export function Quiz({ onComplete, onExit, onAnswer, language, onLanguageChange 
       else {
         setIndex((value) => value + 1);
         setSelected(null);
-        setPreviewed(null);
       }
     }, 430);
   }
@@ -47,7 +45,7 @@ export function Quiz({ onComplete, onExit, onAnswer, language, onLanguageChange 
     if (index === 0) return onExit();
     setIndex((value) => value - 1);
     setSelected(null);
-    setPreviewed(null);
+    setStationaryPointerSlot(null);
   }
 
   return (
@@ -79,24 +77,29 @@ export function Quiz({ onComplete, onExit, onAnswer, language, onLanguageChange 
             <div className="mt-10 grid gap-3 sm:grid-cols-2 sm:gap-4">
               {displayedOptions.map((option, optionIndex) => {
                 const isSelected = selected === option.id;
-                const isPreviewed = !selected && previewed === option.id;
+                const isStationaryPreview = !selected && stationaryPointerSlot === optionIndex;
                 return (
                   <motion.button
                     key={option.id}
                     data-testid={`answer-${option.id}`}
+                    data-option-id={option.id}
                     whileHover={{ y: -3 }}
                     whileTap={{ scale: .985 }}
                     onClick={() => choose(option.id)}
-                    onMouseEnter={() => !selected && setPreviewed(option.id)}
-                    onMouseLeave={() => setPreviewed((value) => value === option.id ? null : value)}
-                    onFocus={() => !selected && setPreviewed(option.id)}
-                    onBlur={() => setPreviewed((value) => value === option.id ? null : value)}
+                    onPointerDown={(event) => { setStationaryPointerSlot(event.pointerType === "mouse" ? optionIndex : null); }}
+                    onPointerMove={(event) => {
+                      setStationaryPointerSlot(event.pointerType === "mouse" ? optionIndex : null);
+                    }}
+                    onPointerLeave={(event) => {
+                      if (!event.relatedTarget) return;
+                      setStationaryPointerSlot((value) => value === optionIndex ? null : value);
+                    }}
                     disabled={Boolean(selected)}
                     className={`focus-ring group relative min-h-28 rounded-2xl border-2 border-[#17142f] p-5 text-left transition-colors ${isSelected ? "bg-[#c8ff55] shadow-[6px_6px_0_#17142f]" : "bg-white shadow-[4px_4px_0_rgba(23,20,47,.16)] hover:bg-[#eee9ff]"}`}
                   >
                     <div className="flex items-start gap-4">
                       <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg border-2 border-[#17142f] text-sm font-black ${isSelected ? "bg-[#17142f] text-white" : "bg-[#fff7df]"}`}>{isSelected ? <Check size={17} strokeWidth={3} /> : letters[optionIndex]}</span>
-                      <div><strong className="text-base leading-snug sm:text-lg">{option.text}</strong><AnimatePresence>{(isPreviewed || isSelected) && <motion.p initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 2 }} className="mt-2 text-sm font-bold text-black/70">{option.reaction}</motion.p>}</AnimatePresence></div>
+                      <div><strong className="text-base leading-snug sm:text-lg">{option.text}</strong><p className={`overflow-hidden text-sm font-bold text-black/70 transition-all duration-150 ${isSelected || isStationaryPreview ? "mt-2 max-h-16 opacity-100" : "mt-0 max-h-0 opacity-0 group-hover:mt-2 group-hover:max-h-16 group-hover:opacity-100 group-focus-visible:mt-2 group-focus-visible:max-h-16 group-focus-visible:opacity-100"}`}>{option.reaction}</p></div>
                     </div>
                   </motion.button>
                 );

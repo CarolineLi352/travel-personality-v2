@@ -40,13 +40,14 @@ test("catalog keeps complete worlds and includes the Pokémon route", () => {
   });
 
   const worlds = readWorlds();
-  expect(worlds).toHaveLength(8);
+  expect(worlds).toHaveLength(9);
   worlds.forEach((world) => {
     expect(world.destinations, world.name).toHaveLength(3);
     expect(new Set(world.destinations.map((item) => item.country)).size, `${world.name} countries`).toBe(3);
   });
   const worldIds = new Set(worlds.map((world) => world.id));
   personas.forEach((persona) => expect(worldIds.has(persona.worldId), persona.code).toBe(true));
+  expect(new Set(personas.map((persona) => persona.worldId)).size).toBe(personas.length);
   expect(new Set(personas.map((persona) => persona.worldId))).toEqual(worldIds);
   const destinations = worlds.flatMap((world) => world.destinations);
   expect(new Set(destinations.map((item) => item.city)).size).toBe(destinations.length);

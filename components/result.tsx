@@ -14,7 +14,8 @@ import { skyscannerUrl, type TravelLanguage } from "@/lib/scoring";
 import { cleanPageUrl, copyText, createResultHash, encodeSharedResult } from "@/lib/share";
 import type { Analysis, Answer, Persona, Scores, World } from "@/lib/types";
 import { LanguageToggle } from "@/components/language-toggle";
-import type { Language } from "@/lib/i18n";
+import { localizePersona, type Language } from "@/lib/i18n";
+import { getPersona } from "@/data/catalog";
 
 type Props = {
   persona: Persona;
@@ -39,6 +40,7 @@ export function Result({ persona, world, scores, analysis, answers, attemptId, f
   const posterTriggerRef = useRef<HTMLButtonElement>(null);
   const posterDialogRef = useRef<HTMLDivElement>(null);
   const posterCloseRef = useRef<HTMLButtonElement>(null);
+  const inviteVariantRef = useRef(0);
   const [posterPreview, setPosterPreview] = useState<PosterPreview | null>(null);
   const [posterStatus, setPosterStatus] = useState("");
   const answerPath = answers.map((answer) => answer.optionId).join("");
@@ -101,6 +103,17 @@ export function Result({ persona, world, scores, analysis, answers, attemptId, f
     return url.toString();
   }
 
+  function matchReturnUrl() {
+    if (!friendSnapshot) return resultUrl();
+    const url = cleanPageUrl();
+    // Put the original inviter back in the main result and attach the friend's
+    // fresh snapshot. This makes the returned link feel native to its receiver.
+    url.searchParams.set("result", encodeSharedResult({ p: friendSnapshot.p, s: friendSnapshot.s }));
+    url.searchParams.set("match", encodeFriendSnapshot({ p: persona.id, s: scores }));
+    if (en) url.searchParams.set("lang", "en");
+    return url.toString();
+  }
+
   function recordShare(shareChannel: "result_link" | "invite_link" | "poster" | "poster_download") {
     trackAnalytics({ eventType: "result_shared", attemptId, personaId: persona.id, shareChannel });
   }
@@ -135,10 +148,28 @@ export function Result({ persona, world, scores, analysis, answers, attemptId, f
   }
 
   async function inviteFriend() {
-    const text = en ? `AI exposed me as “${persona.code} · ${persona.name}” ${persona.emoji}. Your turn—let’s see if we should ever travel together:` : `AI测试说我是「${persona.code} · ${persona.name}」${persona.emoji}。现在轮到你暴露旅行人设了：`;
+    const variants = en
+      ? [
+          `AI exposed me as “${persona.code} · ${persona.name}” ${persona.emoji}. Your turn—let’s see whether we should ever travel together:`,
+          `My travel personality is officially out of hiding: “${persona.code} · ${persona.name}” ${persona.emoji}. Take the quiz and find out whether we are dream travel partners or separate-booking material:`,
+          `This travel-personality verdict is uncomfortably accurate. Submit your own answers so we can audit our friendship compatibility:`,
+          `Before we book another trip, take these 12 questions and find out whether we can reach the destination without a diplomatic incident:`,
+          `I have survived the travel-personality trial as “${persona.code}” ${persona.emoji}. Your turn—the friend-match report unlocks when you finish:`,
+        ]
+      : [
+          `AI 把我鉴定成「${persona.code} · ${persona.name}」${persona.emoji}。现在轮到你了，测完看看我们适不适合一起出门：`,
+          `我的旅行人设已经藏不住了：「${persona.code} · ${persona.name}」${persona.emoji}。你也来测一下，看看我们是黄金搭档还是适合分开订房：`,
+          `这份旅行人格报告有点过于准确。你也来交卷，我们顺便测测友情旅行兼容度：`,
+          `先别急着约下一趟旅行。做完这 12 道题，看看我们能不能和平抵达目的地：`,
+          `我已经接受了旅行人格审判，结果是「${persona.code}」${persona.emoji}。轮到你了，测完直接解锁我们的好友匹配报告：`,
+        ];
+    const intro = variants[inviteVariantRef.current % variants.length];
+    inviteVariantRef.current += 1;
+    const text = `${intro}\n${inviteUrl()}`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: "Travel Personality Indicator", text, url: inviteUrl() });
+        // Keep the URL inside the text so share sheets preserve intro → link order.
+        await navigator.share({ title: "Travel Personality Indicator", text });
         recordShare("invite_link");
         setStatus(en ? "Invitation shared" : "邀请链接已分享");
         return;
@@ -150,9 +181,38 @@ export function Result({ persona, world, scores, analysis, answers, attemptId, f
       }
     }
     try {
-      await copyText(`${text}\n${inviteUrl()}`);
+      await copyText(text);
       recordShare("invite_link");
       setStatus(en ? "Invitation copied" : "邀请文案已复制");
+    } catch {
+      setStatus(en ? "Copy failed. Please copy the browser address." : "复制失败，请从浏览器地址栏复制链接");
+    }
+  }
+
+  async function shareMatchResult() {
+    if (!friendSnapshot) return;
+    const friendPersona = localizePersona(getPersona(friendSnapshot.p), language);
+    const url = matchReturnUrl();
+    const text = en
+      ? `${persona.code} × ${friendPersona.code}: our travel compatibility report is ready.`
+      : `${persona.code} × ${friendPersona.code} 的旅行好友匹配报告出炉了：`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: en ? "Friend travel match" : "好友旅行匹配报告", text, url });
+        recordShare("result_link");
+        setStatus(en ? "Match result shared" : "匹配结果已发回");
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          setStatus(en ? "Sharing cancelled" : "已取消分享");
+          return;
+        }
+      }
+    }
+    try {
+      await copyText(`${text}\n${url}`);
+      recordShare("result_link");
+      setStatus(en ? "Match-result link copied" : "匹配结果链接已复制，可发回给好友");
     } catch {
       setStatus(en ? "Copy failed. Please copy the browser address." : "复制失败，请从浏览器地址栏复制链接");
     }
@@ -280,7 +340,7 @@ export function Result({ persona, world, scores, analysis, answers, attemptId, f
           </section>
       </div>
 
-        <FriendMatch language={language} persona={persona} scores={scores} friend={friendSnapshot} />
+        <FriendMatch language={language} scores={scores} friend={friendSnapshot} onShareMatch={shareMatchResult} />
 
       <section style={{ backgroundImage: world.color }} className="relative mt-6 overflow-hidden rounded-[2rem] border-2 border-[#17142f] bg-[#17142f] p-6 text-white sm:p-10">
           <div className="absolute inset-0 bg-[#17142f]/20" aria-hidden="true" />

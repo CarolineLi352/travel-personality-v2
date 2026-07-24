@@ -5,6 +5,7 @@ const vm = require("node:vm");
 test("uniform answer choices give every persona a comparable result probability", () => {
   const dimensions = ["npc", "chaos", "hype", "spend", "camera", "control"];
   const questions = require("../data/questions.json");
+  const questionInfluence = require("../data/question-influence.json");
   const calibration = require("../data/persona-calibration.json");
   const source = fs.readFileSync("data/catalog.ts", "utf8");
   const personaSource = source
@@ -15,7 +16,7 @@ test("uniform answer choices give every persona a comparable result probability"
   const { personas } = context;
   expect(Object.keys(calibration).sort()).toEqual(personas.map((persona) => persona.id).sort());
   const maxima = Object.fromEntries(dimensions.map((dimension) => [dimension, questions.reduce(
-    (sum, question) => sum + Math.max(...question.options.map((option) => option.weights[dimension] ?? 0)), 0,
+    (sum, question) => sum + Math.max(...question.options.map((option) => option.weights[dimension] ?? 0)) * questionInfluence[question.id], 0,
   )]));
   let seed = 352;
   const random = () => {
@@ -30,17 +31,24 @@ test("uniform answer choices give every persona a comparable result probability"
 
   for (let index = 0; index < samples; index += 1) {
     const raw = Object.fromEntries(dimensions.map((dimension) => [dimension, 0]));
+    const evidence = Object.fromEntries(personas.map((persona) => [persona.id, 0]));
     questions.forEach((question) => {
       const option = question.options[Math.floor(random() * question.options.length)];
-      dimensions.forEach((dimension) => { raw[dimension] += option.weights[dimension] ?? 0; });
+      const influence = questionInfluence[question.id];
+      dimensions.forEach((dimension) => { raw[dimension] += (option.weights[dimension] ?? 0) * influence; });
+      Object.entries(option.personaHints ?? {}).forEach(([personaId, weight]) => { evidence[personaId] += weight * influence; });
     });
     const scores = Object.fromEntries(dimensions.map((dimension) => [dimension, Math.round(raw[dimension] / maxima[dimension] * 100)]));
-    const winner = personas.reduce((best, persona) => {
+    const ranked = personas.map((persona) => {
       const squaredDistance = dimensions.reduce((sum, dimension) => sum + (scores[dimension] - persona.vector[dimension]) ** 2, 0);
       const config = calibration[persona.id];
       const distance = (squaredDistance - config.mean) / config.deviation - config.bias;
-      return !best || distance < best.distance ? { persona, distance } : best;
-    }, null).persona;
+      return { persona, distance };
+    }).sort((first, second) => first.distance - second.distance);
+    const winner = ranked
+      .filter((candidate) => candidate.distance - ranked[0].distance <= 0.2)
+      .map((candidate) => ({ ...candidate, resolvedDistance: candidate.distance - evidence[candidate.persona.id] * 0.04 }))
+      .sort((first, second) => first.resolvedDistance - second.resolvedDistance)[0].persona;
     counts[winner.id] += 1;
   }
 

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { questions, skyscannerUrl } from "../lib/scoring";
+import { matchPersona, questions, scoreAnswers, skyscannerUrl } from "../lib/scoring";
 import { createResultHash } from "../lib/share";
 import { calculateFriendMatch, decodeFriendSnapshot, encodeFriendSnapshot } from "../lib/friend-match";
 import { createRuleBasedAnalysis } from "../lib/analysis";
@@ -35,6 +35,22 @@ test("calculates friend match from the six real score differences", () => {
   expect(decodeFriendSnapshot(encoded)).toEqual({ p: "chaos-traveller", s: first });
 });
 
+test("varies the compatibility overview by actual behavior without exposing dimensions or scores", () => {
+  const cameraLed = calculateFriendMatch(
+    { npc: 20, chaos: 20, hype: 20, spend: 20, camera: 90, control: 20 },
+    { npc: 30, chaos: 30, hype: 30, spend: 30, camera: 80, control: 30 },
+  );
+  const planningLed = calculateFriendMatch(
+    { npc: 20, chaos: 20, hype: 20, spend: 20, camera: 20, control: 90 },
+    { npc: 30, chaos: 30, hype: 30, spend: 30, camera: 30, control: 80 },
+  );
+
+  expect(cameraLed.percentage).toBe(planningLed.percentage);
+  expect(cameraLed.summary).not.toBe(planningLed.summary);
+  expect(cameraLed.summary).not.toMatch(/NPC|整活|上头|氪金|出片|拿捏|\d/);
+  expect(planningLed.summary).not.toMatch(/NPC|整活|上头|氪金|出片|拿捏|\d/);
+});
+
 test("ends destination copy after its catalog connection", () => {
   const persona = getPersona("fomo-rocketeer");
   const world = getWorld(persona.worldId);
@@ -57,6 +73,82 @@ test("builds China and UK departure links from the interface language", () => {
   expect(Object.fromEntries(en.searchParams)).toMatchObject({
     origin: "UK", destination: "EDI", market: "UK", locale: "en-GB", currency: "GBP",
   });
+});
+
+test("uses answer motives to separate otherwise close persona results", () => {
+  const cases = [
+    {
+      scores: { npc: 20, chaos: 55, hype: 39, spend: 51, camera: 32, control: 22 },
+      path: "cbddbcacbdbd",
+      base: "fomo-rocketeer",
+      resolved: "food-hunter",
+    },
+    {
+      scores: { npc: 34, chaos: 43, hype: 35, spend: 28, camera: 29, control: 26 },
+      path: "dacabaddabca",
+      base: "fomo-rocketeer",
+      resolved: "planet-earth-expat",
+    },
+    {
+      scores: { npc: 35, chaos: 60, hype: 54, spend: 29, camera: 21, control: 16 },
+      path: "ababacbdabcc",
+      base: "fomo-rocketeer",
+      resolved: "chaos-traveller",
+    },
+    {
+      scores: { npc: 30, chaos: 22, hype: 5, spend: 36, camera: 36, control: 47 },
+      path: "bcddbaaddbdc",
+      base: "soft-life-migrant",
+      resolved: "luxury-escaper",
+    },
+  ] as const;
+
+  for (const example of cases) {
+    const answers = questions.map((question, index) => ({
+      questionId: question.id,
+      optionId: example.path[index],
+    }));
+    expect(matchPersona(example.scores).id).toBe(example.base);
+    expect(matchPersona(example.scores, answers).id).toBe(example.resolved);
+  }
+});
+
+test("keeps every individual question below the persona-change sensitivity limit", () => {
+  let seed = 724;
+  const random = () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 2 ** 32;
+  };
+  const samples = 48_000;
+  const totals = questions.map(() => 0);
+  const changes = questions.map(() => 0);
+
+  for (let sample = 0; sample < samples; sample += 1) {
+    const optionIndexes = questions.map(() => Math.floor(random() * 4));
+    const answers = questions.map((question, index) => ({
+      questionId: question.id,
+      optionId: question.options[optionIndexes[index]].id,
+    }));
+    const original = matchPersona(scoreAnswers(answers), answers).id;
+    const changedQuestion = sample % questions.length;
+    let replacement = Math.floor(random() * 3);
+    if (replacement >= optionIndexes[changedQuestion]) replacement += 1;
+    const changedAnswers = answers.map((answer, index) => index === changedQuestion
+      ? { ...answer, optionId: questions[index].options[replacement].id }
+      : answer);
+
+    totals[changedQuestion] += 1;
+    if (matchPersona(scoreAnswers(changedAnswers), changedAnswers).id !== original) {
+      changes[changedQuestion] += 1;
+    }
+  }
+
+  const rates = questions.map((question, index) => ({
+    question: question.id,
+    rate: changes[index] / totals[index],
+  }));
+  rates.forEach(({ question, rate }) => expect(rate, question).toBeLessThan(0.45));
+  expect(Math.max(...rates.map(({ rate }) => rate)) - Math.min(...rates.map(({ rate }) => rate))).toBeLessThan(0.08);
 });
 
 test("keeps primary screens inside narrow and wide viewports", async ({ page }) => {
@@ -103,7 +195,7 @@ test("previews an option reaction on hover without showing a check", async ({ pa
 
   const option = page.getByTestId("answer-a");
   const reaction = page.getByText(questions[0].options[0].reaction, { exact: true });
-  await expect(reaction).toHaveCount(0);
+  await expect(reaction).toBeHidden();
 
   await option.hover();
   await expect(reaction).toBeVisible();
@@ -113,18 +205,34 @@ test("previews an option reaction on hover without showing a check", async ({ pa
   await expect(option.locator("svg")).toHaveCount(1, { timeout: 250 });
 });
 
-test("completes the 16-question experience and renders a shareable result", async ({ page }) => {
+test("shows the next option reaction when the pointer stays still between questions", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: /开始暴露自己/ }).click();
+
+  const question = page.getByTestId("question");
+  const firstQuestionId = await question.getAttribute("data-question-id");
+  await question.locator('[data-testid^="answer-"]').first().click();
+  await expect.poll(async () => page.getByTestId("question").getAttribute("data-question-id")).not.toBe(firstQuestionId);
+
+  const reactions = page.getByTestId("question").locator('[data-testid^="answer-"] p');
+  await expect.poll(() => reactions.evaluateAll((elements) => elements.filter((element) => {
+    const bounds = element.getBoundingClientRect();
+    return bounds.height > 0 && getComputedStyle(element).opacity === "1";
+  }).length)).toBe(1);
+});
+
+test("completes the 12-question experience and renders a shareable result", async ({ page }) => {
   test.setTimeout(60_000);
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /AI看穿\s*你的旅行人格/ })).toBeVisible();
   await page.getByRole("button", { name: /开始暴露自己/ }).click();
 
-  for (let index = 1; index <= 16; index += 1) {
+  for (let index = 1; index <= questions.length; index += 1) {
     await expect(page.getByTestId("question")).toHaveCount(1);
     const question = page.getByTestId("question");
     const questionId = await question.getAttribute("data-question-id");
     await page.getByTestId("answer-a").click();
-    if (index < 16) {
+    if (index < questions.length) {
       await page.waitForFunction((previousId) => {
         const questions = document.querySelectorAll('[data-testid="question"]');
         return questions.length === 1 && questions[0].getAttribute("data-question-id") !== previousId;
@@ -171,6 +279,20 @@ test("opens an invited quiz with a neutral invitation", async ({ page }) => {
   await expect(page.getByText(/伟大航路/)).toHaveCount(1); // teaser card only; no inviter result disclosure
 });
 
+test("serves a fully localized English entry and invitation identity", async ({ page }) => {
+  await page.goto("/en/?from=main-character");
+
+  await expect(page.locator("html")).toHaveAttribute("lang", "en-GB");
+  await expect(page).toHaveTitle("Travel Personality Indicator | Discover Your Travel Type");
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /12 playful questions/);
+  await expect(page.locator('meta[property="og:locale"]')).toHaveAttribute("content", "en_GB");
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", /social-preview-en\.png$/);
+  await expect(page.getByText(/LEAD · Main Character Traveller.*sent you this/)).toBeVisible();
+  await expect(page.getByText(/C位/)).toHaveCount(0);
+  await expect(page.getByAltText("JOKER geometric raccoon travel personality")).toBeVisible();
+  await expect(page.getByRole("group", { name: "Language" })).toBeVisible();
+});
+
 test("renders a score-based friend match from an invitation snapshot", async ({ page }) => {
   const scores = { npc: 25, chaos: 100, hype: 80, spend: 40, camera: 55, control: 10 };
   const result = Buffer.from(JSON.stringify({ p: "chaos-traveller", s: scores, a: "aaaaaaaaaaaaaaaa" })).toString("base64url");
@@ -178,9 +300,32 @@ test("renders a score-based friend match from an invitation snapshot", async ({ 
   await page.goto(`/?result=${result}&match=${match}`);
 
   await expect(page.getByTestId("friend-match-percentage")).toHaveText("93%");
-  await expect(page.getByTestId("friend-match")).toContainText("JOKER × FOMO");
-  await expect(page.getByTestId("friend-match")).toContainText("最合拍分项");
-  await expect(page.getByTestId("friend-match")).toContainText("最容易互相无语");
+  await expect(page.getByTestId("friend-match")).toContainText("旅行脑电波疑似共用同一条 Wi‑Fi");
+  await expect(page.getByTestId("friend-match")).not.toContainText("JOKER × FOMO");
+  await expect(page.getByTestId("friend-match")).not.toContainText("最合拍分项");
+  await expect(page.getByTestId("friend-match")).not.toContainText("最容易互相无语");
+});
+
+test("returns a connected match link to the original inviter", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: "http://127.0.0.1:4173" });
+  await page.addInitScript(() => Object.defineProperty(navigator, "share", { configurable: true, value: undefined }));
+  const inviterScores = { npc: 25, chaos: 80, hype: 80, spend: 40, camera: 55, control: 30 };
+  const friendScores = { npc: 25, chaos: 100, hype: 80, spend: 40, camera: 55, control: 10 };
+  const result = Buffer.from(JSON.stringify({ p: "chaos-traveller", s: friendScores, a: "aaaaaaaaaaaaaaaa" })).toString("base64url");
+  const match = encodeFriendSnapshot({ p: "fomo-rocketeer", s: inviterScores });
+  await page.goto(`/?result=${result}&match=${match}`);
+
+  await page.getByTestId("friend-match-share").click();
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  const returned = new URL(copied.match(/https?:\/\/\S+/)?.[0] ?? copied);
+  const returnedResult = decodeFriendSnapshot(String(returned.searchParams.get("result")));
+  const returnedMatch = decodeFriendSnapshot(String(returned.searchParams.get("match")));
+  expect(returnedResult).toEqual({ p: "fomo-rocketeer", s: inviterScores });
+  expect(returnedMatch).toEqual({ p: "chaos-traveller", s: friendScores });
+
+  await page.goto(returned.toString());
+  await expect(page.getByTestId("friend-match-percentage")).toHaveText("93%");
+  await expect(page.getByTestId("friend-match")).toContainText("旅行脑电波疑似共用同一条 Wi‑Fi");
 });
 
 test("creates a private-score match invitation without the answer path", async ({ page, context }) => {
@@ -197,6 +342,29 @@ test("creates a private-score match invitation without the answer path", async (
   expect(invite.searchParams.has("result")).toBe(false);
   const snapshot = decodeFriendSnapshot(String(invite.searchParams.get("match")));
   expect(snapshot).toEqual({ p: "chaos-traveller", s: scores });
+});
+
+test("shares varied friend invitations as intro followed by the connected link", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "share", {
+      configurable: true,
+      value: async (payload: ShareData) => sessionStorage.setItem("last-share-payload", JSON.stringify(payload)),
+    });
+  });
+  const scores = { npc: 25, chaos: 100, hype: 80, spend: 40, camera: 55, control: 10 };
+  const result = Buffer.from(JSON.stringify({ p: "chaos-traveller", s: scores, a: "aaaaaaaaaaaaaaaa" })).toString("base64url");
+  await page.goto(`/?result=${result}`);
+
+  const button = page.getByRole("button", { name: "邀请朋友来测" });
+  await button.click();
+  const first = JSON.parse(await page.evaluate(() => sessionStorage.getItem("last-share-payload") ?? "{}"));
+  await button.click();
+  const second = JSON.parse(await page.evaluate(() => sessionStorage.getItem("last-share-payload") ?? "{}"));
+
+  expect(first.url).toBeUndefined();
+  expect(first.text).toMatch(/^.+：\nhttps?:\/\/[^\s]+\?[^\s]+$/);
+  expect(new URL(first.text.split("\n").at(-1)).searchParams.get("match")).toBeTruthy();
+  expect(second.text.split("\n")[0]).not.toBe(first.text.split("\n")[0]);
 });
 
 test("keeps old Airport Dad links working after its persona merge", async ({ page }) => {
@@ -252,4 +420,21 @@ test("copies a URL-safe result link that restores the shared result", async ({ p
   await expect(receiver.getByText("AI 总结", { exact: true })).toBeVisible();
   await expect(receiver.getByTestId("persona-narrative")).toContainText("别人收藏景点。");
   await expect(receiver.getByText("“来都来了。”")).toBeVisible();
+});
+
+test("maps historical 16-answer result links onto the retained 12 questions", async ({ page }) => {
+  const scores = { npc: 25, chaos: 100, hype: 80, spend: 40, camera: 55, control: 10 };
+  const legacyPath = "abcdabcdabcdabcd";
+  const legacyPositions = [0, 1, 3, 4, 5, 6, 9, 10, 11, 12, 14, 15];
+  const answers = questions.map((question, index) => ({
+    questionId: question.id,
+    optionId: legacyPath[legacyPositions[index]],
+  }));
+  const persona = getPersona("chaos-traveller");
+  const world = getWorld(persona.worldId);
+  const expected = createRuleBasedAnalysis(scores, persona, world, answers);
+  const result = Buffer.from(JSON.stringify({ p: persona.id, s: scores, a: legacyPath })).toString("base64url");
+
+  await page.goto(`/?result=${result}`);
+  await expect(page.getByText(expected.roast, { exact: true })).toBeVisible();
 });

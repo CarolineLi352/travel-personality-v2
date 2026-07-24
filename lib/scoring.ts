@@ -1,16 +1,19 @@
 import questionsData from "@/data/questions.json";
+import questionInfluenceData from "@/data/question-influence.json";
 import { personas } from "@/data/catalog";
 import calibrationData from "@/data/persona-calibration.json";
-import { validateQuestions } from "@/lib/question-data";
+import { validateQuestionInfluence, validateQuestions } from "@/lib/question-data";
 import { dimensionIds, type Answer, type Persona, type Question, type Scores } from "@/lib/types";
 
 export const questions = validateQuestions(questionsData) as Question[];
+const questionInfluence = validateQuestionInfluence(questionInfluenceData, questions);
 
 const zeros = (): Scores => ({ npc: 0, chaos: 0, hype: 0, spend: 0, camera: 0, control: 0 });
 
 const maxima = questions.reduce((totals, question) => {
+  const influence = questionInfluence[question.id];
   for (const dimension of dimensionIds) {
-    totals[dimension] += Math.max(...question.options.map((option) => option.weights[dimension] ?? 0));
+    totals[dimension] += Math.max(...question.options.map((option) => option.weights[dimension] ?? 0)) * influence;
   }
   return totals;
 }, zeros());
@@ -19,9 +22,11 @@ export function scoreAnswers(answers: Answer[]): Scores {
   const raw = zeros();
   for (const answer of answers) {
     const question = questions.find((item) => item.id === answer.questionId);
-    const option = question?.options.find((item) => item.id === answer.optionId);
+    if (!question) continue;
+    const option = question.options.find((item) => item.id === answer.optionId);
     if (!option) continue;
-    for (const dimension of dimensionIds) raw[dimension] += option.weights[dimension] ?? 0;
+    const influence = questionInfluence[question.id];
+    for (const dimension of dimensionIds) raw[dimension] += (option.weights[dimension] ?? 0) * influence;
   }
 
   return Object.fromEntries(
@@ -42,8 +47,36 @@ function calibratedDistance(scores: Scores, persona: Persona) {
   return (squaredDistance - calibration.mean) / calibration.deviation - calibration.bias;
 }
 
-export function matchPersona(scores: Scores): Persona {
-  return [...personas].sort((a, b) => calibratedDistance(scores, a) - calibratedDistance(scores, b))[0];
+const personaHintCandidateWindow = 0.2;
+const personaHintStrength = 0.04;
+
+function personaEvidence(answers: Answer[]) {
+  const evidence = Object.fromEntries(personas.map((persona) => [persona.id, 0])) as Record<string, number>;
+  for (const answer of answers) {
+    const option = questions.find((question) => question.id === answer.questionId)
+      ?.options.find((item) => item.id === answer.optionId);
+    const influence = questionInfluence[answer.questionId] ?? 1;
+    for (const [personaId, weight] of Object.entries(option?.personaHints ?? {})) {
+      evidence[personaId] = (evidence[personaId] ?? 0) + weight * influence;
+    }
+  }
+  return evidence;
+}
+
+export function matchPersona(scores: Scores, answers: Answer[] = []): Persona {
+  const ranked = personas
+    .map((persona) => ({ persona, distance: calibratedDistance(scores, persona) }))
+    .sort((a, b) => a.distance - b.distance);
+  if (answers.length === 0) return ranked[0].persona;
+
+  const evidence = personaEvidence(answers);
+  const candidates = ranked.filter((candidate) => candidate.distance - ranked[0].distance <= personaHintCandidateWindow);
+  return candidates
+    .map((candidate) => ({
+      ...candidate,
+      resolvedDistance: candidate.distance - (evidence[candidate.persona.id] ?? 0) * personaHintStrength,
+    }))
+    .sort((a, b) => a.resolvedDistance - b.resolvedDistance)[0].persona;
 }
 
 export function getTopDimensions(scores: Scores) {

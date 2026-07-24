@@ -96,6 +96,18 @@ export const worlds: World[] = [
       { city: "Cancún", country: "墨西哥", emoji: "🇲🇽", iata: "CUN", reason: "快乐很直给，度假不需要复杂论证。", connection: "适合把脑子寄存在酒店前台。" },
       { city: "Cebu", country: "菲律宾", emoji: "🇵🇭", iata: "CEB", reason: "跳岛、潜水和便宜快乐都很充足。", connection: "现实海底邻居体验卡。" }
     ]
+  },
+  {
+    id: "animal-crossing-island",
+    name: "Animal Crossing Island 动森小岛",
+    emoji: "🏝️",
+    unavailable: "你的理想行程需要全岛好友随时上线，可惜现实群聊还在等第八个人回复。",
+    color: "linear-gradient(135deg, #0f766e 0%, #65a30d 52%, #eab308 100%)",
+    destinations: [
+      { city: "Copenhagen", country: "丹麦", emoji: "🇩🇰", iata: "CPH", reason: "骑车、咖啡和舒服的公共空间，让临时碰头也很自然。", connection: "像一座好友随时能上线串门的现实小岛。" },
+      { city: "Barcelona", country: "西班牙", emoji: "🇪🇸", iata: "BCN", reason: "海滩、街区和共享餐桌，很适合把一天交给朋友接力安排。", connection: "群聊里的每种人格都能在这里找到自己的支线。" },
+      { city: "Seoul", country: "韩国", emoji: "🇰🇷", iata: "SEL", reason: "咖啡、夜生活和多人体验密度很高，临时加人也不会冷场。", connection: "从白天逛到深夜，像一场不断有好友加入的岛民聚会。" }
+    ]
   }
 ];
 
@@ -106,7 +118,7 @@ export const personas: Persona[] = [
   { id: "main-character", code: "C位", codeMeaning: "镜头一开自动站到主角位", name: "Main Character Traveller", emoji: "🎬", tagline: "城市不是目的地，是你本季故事的取景地。", traits: ["BGM 自带", "仪式感满格", "镜头意识"], strength: "总能把普通一天过成预告片。", weakness: "同行者可能兼任摄影、灯光与场务。", travelStyle: "日落、街景与造型驱动路线", companion: "审美在线且拍照不敷衍的人", worldId: "disney-castle", vector: { npc: 25, chaos: 55, hype: 75, spend: 65, camera: 100, control: 45 } },
   { id: "fomo-rocketeer", code: "FOMO", codeMeaning: "错过什么都不能错过限定", name: "FOMO Rocketeer", emoji: "🚀", tagline: "“仅剩两个名额”是你的发射按钮。", traits: ["秒下单", "热点雷达", "先冲再说"], strength: "新鲜体验永远赶得上第一班车。", weakness: "收藏和订单都可能比年假多。", travelStyle: "节庆、限定与高浓度体验", companion: "能在十分钟内收拾好行李的人", worldId: "pokemon-world", vector: { npc: 35, chaos: 75, hype: 100, spend: 70, camera: 65, control: 20 } },
   { id: "soft-life-migrant", code: "ZZZZ", codeMeaning: "自然醒才是旅行主线", name: "Soft Life Migrant", emoji: "☁️", tagline: "旅行的意义，是暂时不做一个很努力的人。", traits: ["低速生活", "情绪回血", "拒绝赶场"], strength: "很会把休息当作正经日程。", weakness: "可能住了五天还没走出酒店两公里。", travelStyle: "咖啡、散步与自然醒", companion: "安静、松弛、不问“下一站呢”的人", worldId: "middle-earth", vector: { npc: 55, chaos: 25, hype: 20, spend: 65, camera: 45, control: 25 } },
-  { id: "social-compass", code: "NPC", codeMeaning: "No Plan, Chill 跟队也快乐", name: "Social Compass", emoji: "🫂", tagline: "去哪不重要，和谁一起才决定地图颜色。", traits: ["气氛感知", "随队切换", "群体快乐"], strength: "能让不同性格的人都玩得舒服。", weakness: "问你意见时，经常得到一句“我都行”。", travelStyle: "朋友主导的多人轻计划", companion: "愿意明确做决定的组织者", worldId: "bikini-bottom", vector: { npc: 100, chaos: 45, hype: 55, spend: 45, camera: 55, control: 15 } },
+  { id: "social-compass", code: "NPC", codeMeaning: "No Plan, Chill 跟队也快乐", name: "Social Compass", emoji: "🫂", tagline: "去哪不重要，和谁一起才决定地图颜色。", traits: ["气氛感知", "随队切换", "群体快乐"], strength: "能让不同性格的人都玩得舒服。", weakness: "问你意见时，经常得到一句“我都行”。", travelStyle: "朋友主导的多人轻计划", companion: "愿意明确做决定的组织者", worldId: "animal-crossing-island", vector: { npc: 100, chaos: 45, hype: 55, spend: 45, camera: 55, control: 15 } },
   { id: "budget-alchemist", code: "GPS", codeMeaning: "Good Price System 省钱导航", name: "Budget Alchemist", emoji: "🧪", tagline: "预算、路线和时间，都能被你导航到最优解。", traits: ["比价天赋", "路线优化", "备选方案"], strength: "省钱不等于受苦，规划也不等于扫兴。", weakness: "为了省 80，可能研究了 8 小时。", travelStyle: "错峰、高性价比与精密路线", companion: "准时、记账清楚且愿意看最新版行程的人", worldId: "galactic-empire", vector: { npc: 25, chaos: 15, hype: 25, spend: 25, camera: 45, control: 100 } },
   { id: "planet-earth-expat", code: "404", codeMeaning: "信号未找到，人已离线", name: "Planet Earth Expat", emoji: "🌍", tagline: "城市信号太满，你想去自然里切飞行模式。", traits: ["野外回血", "大景偏好", "低人密度"], strength: "对真正壮阔的风景有稳定判断力。", weakness: "网络消失后才想起攻略也在云端。", travelStyle: "自驾、徒步与荒野长线", companion: "体力稳定又尊重自然的人", worldId: "pandora", vector: { npc: 15, chaos: 65, hype: 45, spend: 45, camera: 65, control: 45 } },
 ];

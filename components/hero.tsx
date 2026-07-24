@@ -40,7 +40,7 @@ export function Hero({ onStart, invitation, analyticsEnabled = false, language, 
             <button onClick={onStart} className="button-pop focus-ring flex items-center gap-3 rounded-2xl border-2 border-[#17142f] bg-[#c8ff55] px-7 py-4 text-lg font-black text-[#17142f] shadow-[6px_6px_0_#17142f]">
               {en ? "Roast my travel habits" : "开始暴露自己"} <ArrowRight size={22} strokeWidth={3} />
             </button>
-            <span className="text-sm font-bold text-white">{en ? "16 questions · About 2 minutes · Scientifically unsupported" : "16 道题 · 约 2 分钟 · 无科学依据"}</span>
+            <span className="text-sm font-bold text-white">{en ? "12 questions · About 90 seconds · Scientifically unsupported" : "12 道题 · 约 90 秒 · 无科学依据"}</span>
           </motion.div>
           {analyticsEnabled && <p className="mt-4 text-xs font-bold text-white/70">{en ? "Anonymous usage analytics are enabled. No names, emails, or full addresses are collected." : "启用匿名使用统计，不收集姓名、邮箱或完整访问地址。"}</p>}
         </div>
@@ -49,7 +49,7 @@ export function Hero({ onStart, invitation, analyticsEnabled = false, language, 
           <motion.div initial={{ rotate: -12, scale: .8, opacity: 0 }} animate={{ rotate: -7, scale: 1, opacity: 1 }} transition={{ type: "spring", delay: .15 }} className="absolute left-0 top-16 w-[78%] rounded-[2rem] border-2 border-[#17142f] bg-[#fffdf7] p-6 text-[#17142f] shadow-[10px_12px_0_#17142f]">
             <p className="text-xs font-black uppercase tracking-widest text-[#5635c7]">Your result is...</p>
             <div className="my-3 aspect-square w-full overflow-hidden rounded-2xl bg-[#fffdf7]">
-              <Image src={personaImageSrc("chaos-traveller")} alt="JOKER 几何浣熊人格形象" width={768} height={768} priority unoptimized className="h-full w-full object-cover" />
+              <Image src={personaImageSrc("chaos-traveller")} alt={en ? "JOKER geometric raccoon travel personality" : "JOKER 几何浣熊人格形象"} width={768} height={768} priority unoptimized className="h-full w-full object-cover" />
             </div>
             <h2 className="display text-5xl leading-none">JOKER</h2>
             <p className="mt-3 text-xs font-black uppercase tracking-wider text-[#5635c7]">Chaos Traveller</p>

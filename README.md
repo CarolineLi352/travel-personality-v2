@@ -2,9 +2,11 @@
 
 [在线体验](https://carolineli352.github.io/travel-personality-v2/) · [原版 V1](https://carolineli352.github.io/travel-personality/)
 
-一个为分享而生的旅行人格测试。用户通过 16 道互联网行为题，得到旅行人格代码、几何动物形象、六维雷达图、固定多方案 AI 总结、异世界目的地和现实航班推荐。
+一个为分享而生的旅行人格测试。用户通过 12 道互联网行为题，得到旅行人格代码、几何动物形象、六维雷达图、固定多方案 AI 总结、异世界目的地和现实航班推荐。
 
 ![Travel Personality Indicator V2 Social Preview](public/social-preview.png)
+
+英文入口位于 [`/en/`](https://carolineli352.github.io/travel-personality-v2/en/)，使用独立的英文 Metadata、语义语言标记和社交分享预览图。
 
 > 不需要 OpenAI API。计分、人格匹配、文案组合、海报和二维码全部在浏览器本地生成；可选的匿名使用统计需要 Supabase 环境变量。
 
@@ -14,7 +16,7 @@
 
 ```text
 首页
-  → 16 道互联网行为题
+  → 12 道互联网行为题
   → 六维隐藏计分
   → 9 种人格匹配
   → 本地固定多方案 AI 总结
@@ -54,7 +56,7 @@
 
 ### 目的地推荐
 
-9 种人格映射到 8 个虚构世界和 24 个现实目的地，包括 Grand Line、Middle-earth、Pokémon World、Pandora 和 Bikini Bottom。
+9 种人格分别映射到 9 个专属虚构世界和 27 个现实目的地，包括 Grand Line、Middle-earth、Pokémon World、Pandora、Bikini Bottom 和 Animal Crossing Island。
 
 每次结果提供三个不同国家或地区的现实目的地。当前页面默认为中文并生成中国出发的天巡链接；底层链接工具同时保留英文版所需的 UK 出发配置。
 
@@ -108,7 +110,7 @@ npm run analyze:balance -- 1000000 # 运行人格概率模拟
 npx playwright install chromium
 ```
 
-当前测试覆盖完整 16 题流程、人格概率、无性别文案、目的地目录、分享链接、结果 Hash、人格海报、二维码和社交分享回退。
+当前测试覆盖完整 12 题流程、人格概率、无性别文案、目的地目录、分享链接、结果 Hash、人格海报、二维码和社交分享回退。
 
 ## 匿名使用统计（可选）
 
@@ -128,6 +130,7 @@ npx playwright install chromium
 核心逻辑完全解耦：
 
 - [`data/questions.json`](data/questions.json)：题目、答案和多维权重
+- [`data/question-influence.json`](data/question-influence.json)：均衡每道题对最终结果的影响
 - [`data/catalog.ts`](data/catalog.ts)：人格、世界和现实目的地
 - [`data/persona-calibration.json`](data/persona-calibration.json)：人格概率校准
 - [`lib/scoring.ts`](lib/scoring.ts)：归一化计分和人格匹配

@@ -34,7 +34,7 @@ const PERSONA_PAYLOADS = {
   "planet-earth-expat": { p: "planet-earth-expat",  s: { npc: 15, chaos: 65,  hype: 45,  spend: 45,  camera: 65, control: 45  }, a: "aaaaaaaaaaaaaaaa" },
 };
 
-// 24 destinations: (world, city, iata) in catalog order.
+// 27 destinations: (world, city, iata) in catalog order.
 const ALL_DESTINATIONS = [
   // grand-line → chaos-traveller
   { personaId: "chaos-traveller",    city: "Okinawa",     iata: "OKA" },
@@ -64,10 +64,14 @@ const ALL_DESTINATIONS = [
   { personaId: "planet-earth-expat", city: "Zhangjiajie", iata: "DYG" },
   { personaId: "planet-earth-expat", city: "Kauai",       iata: "LIH" },
   { personaId: "planet-earth-expat", city: "San José",    iata: "SJO" },
-  // bikini-bottom → food-hunter + social-compass (shared world)
+  // bikini-bottom → food-hunter
   { personaId: "food-hunter",        city: "Honolulu",    iata: "HNL" },
   { personaId: "food-hunter",        city: "Cancún",      iata: "CUN" },
   { personaId: "food-hunter",        city: "Cebu",        iata: "CEB" },
+  // animal-crossing-island → social-compass
+  { personaId: "social-compass",     city: "Copenhagen",  iata: "CPH" },
+  { personaId: "social-compass",     city: "Barcelona",   iata: "BCN" },
+  { personaId: "social-compass",     city: "Seoul",       iata: "SEL" },
 ];
 
 function encodePayload(payload) {
@@ -126,10 +130,10 @@ test("all 9 persona images load successfully", async ({ page }) => {
 });
 
 // ---------------------------------------------------------------------------
-// 3. All 24 destinations display their city name and produce a valid flight link
+// 3. All 27 destinations display their city name and produce a valid flight link
 // ---------------------------------------------------------------------------
 
-test("all 24 destinations render city names and flight links", async ({ page }) => {
+test("all 27 destinations render city names and flight links", async ({ page }) => {
   for (const { personaId, city, iata } of ALL_DESTINATIONS) {
     const payload = PERSONA_PAYLOADS[personaId];
     await page.goto(resultUrl(payload));

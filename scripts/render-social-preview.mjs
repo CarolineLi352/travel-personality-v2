@@ -4,7 +4,8 @@ import QRCode from "qrcode";
 
 const args = process.argv.slice(2);
 const overlayExisting = args.includes("--overlay-existing");
-const positional = args.filter((arg) => arg !== "--overlay-existing");
+const english = args.includes("--lang=en");
+const positional = args.filter((arg) => arg !== "--overlay-existing" && arg !== "--lang=en");
 const [source, output = "public/social-preview.png", testUrl = "https://carolineli352.github.io/travel-personality-v2/"] = positional;
 if (!source) {
   throw new Error(
@@ -29,6 +30,7 @@ await page.setContent(`
     main { position: relative; width: 1200px; height: 630px; overflow: hidden; color: #fffdf7; background: #17142f; }
     .art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
     .shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(23,20,47,.98) 0%, rgba(23,20,47,.88) 34%, rgba(23,20,47,.14) 64%, transparent 100%); }
+    .copy-cleanup { position: absolute; inset: 0 auto 0 0; width: 690px; background: linear-gradient(90deg, #17142f 0%, #17142f 73%, rgba(23,20,47,.9) 86%, transparent 100%); }
     .content { position: absolute; inset: 52px 56px 44px 64px; display: flex; flex-direction: column; align-items: flex-start; }
     .brand { display: flex; align-items: center; gap: 14px; font-size: 18px; font-weight: 900; letter-spacing: -.02em; }
     .logo { display: grid; place-items: center; width: 48px; height: 48px; border: 3px solid #17142f; border-radius: 14px; color: #17142f; background: #c8ff55; box-shadow: 5px 5px 0 #7657ff; transform: rotate(-5deg); font-size: 19px; }
@@ -46,21 +48,22 @@ await page.setContent(`
   </style>
   <main>
     <img class="art" src="data:image/png;base64,${background}" alt="">
+    ${overlayExisting ? "" : '<div class="copy-cleanup"></div>'}
     ${overlayExisting ? "" : `
       <div class="shade"></div>
       <section class="content">
         <div class="brand"><span class="logo">TP</span>Travel Personality Indicator</div>
-        <div class="badge">⚡ 16 道互联网行为题</div>
+        <div class="badge">${english ? "12 QUESTIONS · 90 SECONDS" : "⚡ 12 道互联网行为题"}</div>
         <h1>YOUR TRAVEL<br><span>PERSONALITY</span></h1>
-        <p class="tagline">AI 看穿你的旅行人格。</p>
+        <p class="tagline">${english ? "Your group chat already knows." : "AI 看穿你的旅行人格。"}</p>
       </section>
     `}
     ${overlayExisting ? '<div class="codes-cleanup"></div>' : ""}
-    <aside class="qr-card" aria-label="扫码进入测试">
-      <img src="${qrCode}" alt="测试页面二维码">
+    <aside class="qr-card" aria-label="${english ? "Scan to take the quiz" : "扫码进入测试"}">
+      <img src="${qrCode}" alt="${english ? "Quiz QR code" : "测试页面二维码"}">
       <span class="qr-copy">
-        <strong>扫码进入<br>旅行人格测试</strong>
-        <small>测测你是哪种</small>
+        <strong>${english ? "SCAN TO TAKE<br>THE QUIZ" : "扫码进入<br>旅行人格测试"}</strong>
+        <small>${english ? "FIND YOUR TRAVEL TYPE" : "测测你是哪种"}</small>
       </span>
     </aside>
   </main>

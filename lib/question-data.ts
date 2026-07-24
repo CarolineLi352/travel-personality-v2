@@ -1,3 +1,4 @@
+import { personas } from "@/data/catalog";
 import { dimensionIds, type Question } from "@/lib/types";
 
 type EnglishQuestion = {
@@ -29,7 +30,7 @@ export function validateQuestions(value: unknown): Question[] {
     const seenOptionIds = new Set<string>();
     const parsedOptions = options.map((optionValue, optionIndex) => {
       if (!isRecord(optionValue)) fail(`${id} option ${optionIndex + 1} must be an object`);
-      const { id: optionId, text, reaction, weights } = optionValue;
+      const { id: optionId, text, reaction, weights, personaHints } = optionValue;
       if (typeof optionId !== "string" || !/^[a-d]$/.test(optionId)) fail(`${id} has invalid option id`);
       if (seenOptionIds.has(optionId)) fail(`${id} has duplicate option ${optionId}`);
       seenOptionIds.add(optionId);
@@ -38,7 +39,14 @@ export function validateQuestions(value: unknown): Question[] {
         if (!dimensionIds.includes(dimension as (typeof dimensionIds)[number])) fail(`${id}.${optionId} uses unknown dimension ${dimension}`);
         if (typeof weight !== "number" || !Number.isFinite(weight) || weight < 0) fail(`${id}.${optionId} has invalid ${dimension} weight`);
       }
-      return { id: optionId, text, reaction, weights };
+      if (personaHints !== undefined) {
+        if (!isRecord(personaHints)) fail(`${id}.${optionId} has invalid persona hints`);
+        for (const [personaId, weight] of Object.entries(personaHints)) {
+          if (!personas.some((persona) => persona.id === personaId)) fail(`${id}.${optionId} uses unknown persona ${personaId}`);
+          if (typeof weight !== "number" || !Number.isFinite(weight) || weight <= 0 || weight > 3) fail(`${id}.${optionId} has invalid ${personaId} hint`);
+        }
+      }
+      return { id: optionId, text, reaction, weights, ...(personaHints ? { personaHints } : {}) };
     });
     return { id, setup, prompt, emoji, options: parsedOptions } as Question;
   });
@@ -70,5 +78,18 @@ export function validateOptionOrder(value: unknown, questions: Question[]): Reco
     const expected = question.options.map((option) => option.id).sort();
     if (!Array.isArray(order) || order.length !== expected.length || [...order].sort().join("") !== expected.join("")) fail(`invalid option order for ${question.id}`);
     return [question.id, order as string[]];
+  }));
+}
+
+export function validateQuestionInfluence(value: unknown, questions: Question[]): Record<string, number> {
+  if (!isRecord(value)) fail("question influence must be an object");
+  const questionIds = questions.map((question) => question.id).sort();
+  if (Object.keys(value).sort().join("|") !== questionIds.join("|")) fail("question influence keys do not match questions");
+  return Object.fromEntries(questions.map((question) => {
+    const influence = value[question.id];
+    if (typeof influence !== "number" || !Number.isFinite(influence) || influence < 0.5 || influence > 1.5) {
+      fail(`invalid question influence for ${question.id}`);
+    }
+    return [question.id, influence];
   }));
 }

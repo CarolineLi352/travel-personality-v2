@@ -4,10 +4,11 @@
 
 ```text
 questions.json
-  → 16 个选项答案
+  → 12 个选项答案
   → 六维原始分数
   → 按各维理论最大值归一化到 0–100
   → 与 9 个人格目标向量计算距离
+  → 接近结果使用选项人格证据消歧
   → 选出最近人格
   → 读取人格对应的虚构世界和三个现实目的地
   → 使用答案路径生成稳定 seed
@@ -19,7 +20,7 @@ questions.json
 
 ## 计分与人格匹配
 
-题目位于 [`../data/questions.json`](../data/questions.json)。每个选项通过 `weights` 同时影响一个或多个维度。
+题目位于 [`../data/questions.json`](../data/questions.json)。每个选项通过 `weights` 同时影响一个或多个维度；[`../data/question-influence.json`](../data/question-influence.json) 会均衡各题的整体影响，避免最后一题或某个强场景单独主导结果。
 
 [`../lib/scoring.ts`](../lib/scoring.ts) 会先计算每个维度在全部题目中的理论最高分，再把用户原始分数归一化为 0–100：
 
@@ -27,11 +28,11 @@ questions.json
 归一化分数 = 用户维度原始分数 ÷ 该维度理论最高分 × 100
 ```
 
-9 种人格在 [`../data/catalog.ts`](../data/catalog.ts) 中各自拥有一个六维目标向量。直接使用欧氏距离时，中间型人格会吸收大部分普通答案，极端人格几乎无法获得；因此系统会用 [`../data/persona-calibration.json`](../data/persona-calibration.json) 中的距离均值、标准差和偏置计算相对接近度，再选出校准距离最小的人格。
+9 种人格在 [`../data/catalog.ts`](../data/catalog.ts) 中各自拥有一个六维目标向量。直接使用欧氏距离时，中间型人格会吸收大部分普通答案，极端人格几乎无法获得；因此系统会用 [`../data/persona-calibration.json`](../data/persona-calibration.json) 中的距离均值、标准差和偏置计算相对接近度。若多个结果的校准距离非常接近，系统才会读取选项中的 `personaHints`，用“选择背后的动机”区分 FOOD 与 404、JOKER 与 FOMO 等相邻人格；好友匹配仍只使用六维分数。
 
 题目在界面中的 A–D 展示顺序由 [`../data/option-order.json`](../data/option-order.json) 固定配置。它只调整位置，不修改选项 ID 或权重；六个维度在四个展示位置的累计权重差均不超过 2，避免首项长期指向同一种人格。固定顺序也确保返回上一题时不会突然换位。
 
-校准以“每道题四个选项等概率”为产品基准，不代表真实用户分布。当前百万次固定种子模拟中，校准后命中率约为 10.15%–12.20%，理论平均值是 11.11%。六维答案仍决定人格，校准只修正不同目标向量天然占据区域大小不一致的问题。
+校准以“每道题四个选项等概率”为产品基准，不代表真实用户分布。当前百万次固定种子模拟中，校准后命中率约为 11.0%–11.3%，理论平均值是 11.11%。六维答案仍决定人格，校准只修正不同目标向量天然占据区域大小不一致的问题。
 
 修改题目权重、题目数量、人格向量或人格数量后，应运行：
 
@@ -71,13 +72,13 @@ npm run analyze:balance -- 1000000
 
 早期分享链接会兼容映射：`airport-dad`、`airport-guardian`、`spreadsheet-pilot`、`maps-believer`、`culture-time-traveller` → `budget-alchemist`，`weekend-goblin`、`dopamine-nomad` → `fomo-rocketeer`，`aesthetic-smuggler` → `main-character`，`off-grid-oracle`、`hidden-gem-collector` → `planet-earth-expat`。
 
-邀请链接包含 `from=<persona-id>` 和一个 `match` 快照。快照只携带邀请方的人格 ID 与六维分数，不包含 16 道具体答案。好友完成测试后，系统用六个维度的平均绝对差计算匹配度：
+邀请链接包含 `from=<persona-id>` 和一个 `match` 快照。快照只携带邀请方的人格 ID 与六维分数，不包含 12 道具体答案。好友完成测试后，系统用六个维度的平均绝对差计算匹配度：
 
 ```text
 Friend Match = 100 - 六个维度绝对分差的平均值
 ```
 
-结果页同时展示双方差异最小的“最合拍分项”、差异最大的“最容易互相无语”分项和对应调侃。带 Match 的结果链接会保留邀请方快照，方便好友把对比结果发回去。
+结果页只展示整体匹配度和一至两句兼容性概述，不公开双方人格类别、分项名称、具体分差或计算说明。概述会根据整体匹配程度以及双方实际较同步或较需协调的行为模式动态变化。未匹配时统一使用页面底部的“邀请朋友来测”，避免出现重复入口；好友完成测试后，匹配卡片内会出现独立的匹配结果回传按钮。回传链接把原邀请方放回主结果、把答题好友作为 `match` 快照，因此邀请方打开后会直接看到自己的结果和双方匹配度。普通结果分享也会继续保留已有的 `match` 快照。
 
 ## 关键文件
 
@@ -85,8 +86,9 @@ Friend Match = 100 - 六个维度绝对分差的平均值
 | --- | --- |
 | `data/questions.json` | 题目、选项、反馈文案和多维权重 |
 | `data/option-order.json` | 每道题稳定且位置均衡的 A–D 展示顺序 |
-| `data/catalog.ts` | 9 种人格、8 个世界、24 个目的地 |
+| `data/catalog.ts` | 9 种人格、9 个专属世界、27 个目的地 |
 | `data/persona-calibration.json` | 人格相对距离的均值、标准差与概率校准偏置 |
+| `data/question-influence.json` | 各题影响系数，避免单一题目过度主导结果 |
 | `public/personas/` | 当前人格对应的 768 × 768 简约几何动物 2D 形象，以及早期版本候选素材 |
 | `lib/scoring.ts` | 归一化、向量距离和 Skyscanner URL |
 | `lib/analysis.ts` | 策略、文案池和稳定组合逻辑 |
@@ -95,6 +97,7 @@ Friend Match = 100 - 六个维度绝对分差的平均值
 | `lib/poster.ts` | 1080 × 1440 Canvas 海报及邀请二维码 |
 | `components/travel-app.tsx` | 首页、问卷、等待态和结果状态机 |
 | `components/result.tsx` | 结果展示、海报、结果链接和邀请分享 |
+| `lib/site-metadata.ts` | 中英文 SEO、canonical、hreflang 与社交分享元数据 |
 | `tests/` | 完整流程、静态架构、邀请入口和海报二维码测试 |
 | `scripts/analyze-persona-balance.mjs` | 固定种子人格命中率模拟 |
 
